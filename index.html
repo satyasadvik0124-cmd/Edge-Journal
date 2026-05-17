@@ -772,6 +772,78 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .dpill.be{background:rgba(247,164,74,0.12);color:#f7a44a;border:0.5px solid rgba(247,164,74,0.2)}
 .dpill.total{background:rgba(255,255,255,0.05);color:rgba(232,230,240,0.5);border:0.5px solid rgba(255,255,255,0.08)}
 
+@media (max-width: 768px) {
+
+  .nav {
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px;
+  }
+
+  .nav-links {
+    width: 100%;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .dashboard-grid,
+  .stats-grid,
+  .insights-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .card,
+  .stat-card,
+  .insight-card {
+    padding: 16px;
+  }
+
+  .modal {
+    width: 95%;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  .trade-table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .chart-container {
+    height: 260px !important;
+  }
+
+  input,
+  select,
+  textarea,
+  button {
+    font-size: 16px;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .hero-title {
+    font-size: 28px !important;
+  }
+
+  .hero-subtitle {
+    font-size: 15px !important;
+  }
+
+  .submit-btn,
+  .nav-btn,
+  .auth-btn {
+    width: 100%;
+  }
+
+  .photo-preview-row {
+    flex-wrap: wrap;
+  }
+}
+
 body {
   background:
     radial-gradient(circle at top left,
