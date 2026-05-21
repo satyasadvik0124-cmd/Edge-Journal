@@ -9,22 +9,29 @@ export default async function handler(req, res) {
   try {
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      "https://openrouter.ai/api/v1/chat/completions",
       {
         method: "POST",
 
         headers: {
-          "Content-Type": "application/json"
+          "Authorization":
+            `Bearer ${process.env.OPENROUTER_API_KEY}`,
+
+          "Content-Type":
+            "application/json"
         },
 
         body: JSON.stringify({
-          contents: [
+
+          model:
+            "meta-llama/llama-3.1-8b-instruct:free",
+
+          messages: [
             {
-              parts: [
-                {
-                  text: "Say hello as an AI trading coach"
-                }
-              ]
+              role: "user",
+
+              content:
+                "You are an elite AI trading coach. Say hello."
             }
           ]
         })
@@ -33,21 +40,11 @@ export default async function handler(req, res) {
 
     const data = await response.json();
 
-    console.log("GEMINI RESPONSE:");
-    console.log(JSON.stringify(data, null, 2));
-
-    if (!response.ok) {
-
-      return res.status(response.status).json({
-        error:
-          data?.error?.message ||
-          'Gemini request failed'
-      });
-    }
+    console.log(data);
 
     const text =
-      data?.candidates?.[0]?.content?.parts?.[0]?.text
-      || 'No response';
+      data?.choices?.[0]?.message?.content
+      || "No response";
 
     return res.status(200).json({
       analysis: text
