@@ -8,6 +8,42 @@ export default async function handler(req, res) {
 
   try {
 
+    const trade = req.body;
+
+    const prompt = `
+You are an elite AI trading coach.
+
+Analyze this forex trade deeply.
+
+Trade Details:
+Pair: ${trade.pair}
+Direction: ${trade.direction}
+Entry: ${trade.entry}
+Exit: ${trade.exit}
+Stop Loss: ${trade.sl}
+Take Profit: ${trade.tp}
+Risk Reward: ${trade.rr}
+PNL: ${trade.pnl}
+Trade Duration: ${trade.duration}
+Emotion: ${trade.emotion}
+
+Entry Reason:
+${trade.reason}
+
+Lessons Learned:
+${trade.lessons}
+
+Provide:
+1. Trade quality analysis
+2. Psychology analysis
+3. Risk management feedback
+4. Execution mistakes
+5. Improvement suggestions
+6. Pattern observations
+
+Respond professionally.
+`;
+
     const response = await fetch(
       "https://openrouter.ai/api/v1/chat/completions",
       {
@@ -37,8 +73,7 @@ export default async function handler(req, res) {
             {
               role: "user",
 
-              content:
-                "You are an elite AI trading coach. Say hello."
+              content: prompt
             }
           ]
         })

@@ -756,11 +756,92 @@ btn.style.cursor = 'not-allowed';
 
   try {
 
-    const response = await fetch('/api/analyze', {
-      method:'POST',
-      headers:{
-        'Content-Type':'application/json'
-      },
+   const response = await fetch('/api/analyze', {
+
+  method: 'POST',
+
+  headers: {
+    'Content-Type': 'application/json'
+  },
+
+  body: JSON.stringify({
+
+    pair: trade.pair,
+
+    direction: trade.direction,
+
+    entry: trade.entry,
+
+    exit: trade.exit,
+
+    sl: trade.sl,
+
+    tp: trade.tp,
+
+    rr: trade.rr,
+
+    pnl: trade.pnl,
+
+    duration: trade.duration,
+
+    emotion: trade.emotion,
+
+    reason: trade.reason,
+
+    lessons: trade.lessons
+  })
+});
+
+const data = await response.json();
+
+document.getElementById('aiResult').innerHTML = `
+
+  <h3>AI Trading Coach</h3>
+
+  <p>${data.analysis}</p>
+`;
+  method: 'POST',
+
+  headers: {
+    'Content-Type': 'application/json'
+  },
+
+  body: JSON.stringify({
+
+    pair: trade.pair,
+
+    direction: trade.direction,
+
+    entry: trade.entry,
+
+    exit: trade.exit,
+
+    sl: trade.sl,
+
+    tp: trade.tp,
+
+    rr: trade.rr,
+
+    pnl: trade.pnl,
+
+    duration: trade.duration,
+
+    emotion: trade.emotion,
+
+    reason: trade.reason,
+
+    lessons: trade.lessons
+  })
+});
+
+const data = await response.json();
+
+document.getElementById('aiResult').innerHTML = `
+
+  <h3>AI Trading Coach</h3>
+
+  <p>${data.analysis}</p>
+`;
       body:JSON.stringify({
         pair:trade.pair,
         direction:trade.dir,
