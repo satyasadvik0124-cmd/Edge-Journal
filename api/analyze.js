@@ -14,17 +14,24 @@ export default async function handler(req, res) {
         method: "POST",
 
         headers: {
+
           "Authorization":
             `Bearer ${process.env.OPENROUTER_API_KEY}`,
 
           "Content-Type":
-            "application/json"
+            "application/json",
+
+          "HTTP-Referer":
+            "https://edge-journal-sadvik.vercel.app",
+
+          "X-Title":
+            "Edge Journal"
         },
 
         body: JSON.stringify({
 
           model:
-            "meta-llama/llama-3.1-8b-instruct:free",
+            "openai/gpt-3.5-turbo",
 
           messages: [
             {
@@ -40,7 +47,17 @@ export default async function handler(req, res) {
 
     const data = await response.json();
 
-    console.log(data);
+    console.log("OPENROUTER RESPONSE:");
+    console.log(JSON.stringify(data, null, 2));
+
+    if (!response.ok) {
+
+      return res.status(response.status).json({
+        error:
+          data?.error?.message ||
+          'OpenRouter request failed'
+      });
+    }
 
     const text =
       data?.choices?.[0]?.message?.content
