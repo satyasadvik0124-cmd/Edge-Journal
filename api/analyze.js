@@ -13,7 +13,7 @@ export default async function handler(req, res) {
     const prompt = `
 You are an elite AI trading coach.
 
-Analyze this trade deeply.
+Analyze this forex trade deeply.
 
 Trade Details:
 Pair: ${trade.pair}
@@ -45,12 +45,14 @@ Respond professionally.
 `;
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
       {
         method: 'POST',
+
         headers: {
           'Content-Type': 'application/json'
         },
+
         body: JSON.stringify({
           contents: [
             {
@@ -60,30 +62,47 @@ Respond professionally.
                 }
               ]
             }
-          ]
+          ],
+
+          generationConfig: {
+            temperature: 0.7,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 1024
+          }
         })
       }
     );
 
     const data = await response.json();
 
-   console.log(JSON.stringify(data, null, 2));
+    console.log("FULL GEMINI RESPONSE:");
+    console.log(JSON.stringify(data, null, 2));
 
-const text =
-  data?.candidates?.[0]?.content?.parts
-    ?.map(p => p.text)
-    ?.join(' ') ||
-  data?.promptFeedback?.blockReason ||
-  'No AI response returned';
-    res.status(200).json({
+    if (!response.ok) {
+
+      return res.status(response.status).json({
+        error: data?.error?.message || 'Gemini API request failed'
+      });
+    }
+
+    const text =
+      data?.candidates?.[0]?.content?.parts
+        ?.map(part => part.text || '')
+        ?.join(' ')
+        ?.trim()
+      || data?.promptFeedback?.blockReason
+      || 'No AI response returned';
+
+    return res.status(200).json({
       analysis: text
     });
 
   } catch (error) {
 
-    console.error(error);
+    console.error('AI ANALYSIS ERROR:', error);
 
-    res.status(500).json({
+    return res.status(500).json({
       error: 'AI analysis failed'
     });
   }
