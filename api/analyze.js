@@ -26,7 +26,10 @@ export default async function handler(req, res) {
     );
 
     const data = await response.json();
-
+document.getElementById('aiResult').innerHTML = `
+  <h3>AI Trading Coach</h3>
+  <p>${data.analysis}</p>
+`;
     console.log(data);
 
     return res.status(200).json(data);
