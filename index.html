@@ -792,18 +792,19 @@ btn.style.cursor = 'pointer';
 
   } catch(error) {
 
-    console.error(error);
+  console.error(error);
 
-    document.getElementById('aiLoading')
-      .style.display = 'none';
+  document.getElementById('aiLoading')
+    .style.display = 'none';
 
-    document.getElementById('aiResult')
-      .textContent =
-        data.error || 'AI analysis failed.';
-        btn.disabled = false;
-btn.style.opacity = '1';
-btn.style.cursor = 'pointer';
-  }
+  document.getElementById('aiResult')
+    .textContent =
+      error.message || 'AI analysis failed.';
+
+  btn.disabled = false;
+  btn.style.opacity = '1';
+  btn.style.cursor = 'pointer';
+}
 };
 
 window.closeAiModal = function() {
