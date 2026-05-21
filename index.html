@@ -535,13 +535,282 @@ window.renderHistory = function() {
 
 // ─── MODAL ───
 window.openTrade = function(docId) {
-  const t=trades.find(x=>x._docId===docId);if(!t)return;
-  const ds=new Date(t.open).toLocaleString('en-GB',{dateStyle:'long',timeStyle:'short'});
-  const eL={calm:'Calm',confident:'Confident',anxious:'Anxious',fearful:'Fearful',greedy:'Greedy'};
-  document.getElementById('modal-content').innerHTML=`<button class="modal-close" onclick="document.getElementById('modal-overlay').classList.remove('open')">✕</button><div class="modal-pair">${t.pair} <span style="font-size:13px;color:${t.dir==='Buy'?'#4ac582':'#f74a6a'};font-family:'DM Sans'">${t.dir}</span></div><div class="modal-date">${ds}</div><div class="modal-row"><span class="modal-key">Session</span><span class="session-badge ${sessionClass(t.session)}">${t.session}</span></div><div class="modal-row"><span class="modal-key">Hold Duration</span><span class="modal-val" style="color:#4a9af7;font-family:'Space Mono',monospace">${t.durLabel}</span></div><div class="modal-row"><span class="modal-key">Entry</span><span class="modal-val" style="font-family:'Space Mono',monospace">${t.entry}</span></div><div class="modal-row"><span class="modal-key">Exit</span><span class="modal-val" style="font-family:'Space Mono',monospace">${t.exit}</span></div>${t.sl?`<div class="modal-row"><span class="modal-key">Stop Loss</span><span class="modal-val" style="font-family:'Space Mono',monospace">${t.sl}</span></div>`:''} ${t.tp?`<div class="modal-row"><span class="modal-key">Take Profit</span><span class="modal-val" style="font-family:'Space Mono',monospace">${t.tp}</span></div>`:''}<div class="modal-row"><span class="modal-key">Risk : Reward</span><span class="modal-val" style="color:#c5f74a;font-family:'Space Mono',monospace">${t.rr}</span></div><div class="modal-row"><span class="modal-key">P&L</span><span class="pnl ${t.pnl>=0?'pos':'neg'}">${t.pnl>=0?'+':''}$${t.pnl.toFixed(2)}</span></div><div class="modal-row"><span class="modal-key">Emotion</span><span class="modal-val">${eL[t.emotion]||t.emotion}</span></div>${t.reason?`<div class="modal-section-label">Setup / Reason</div><div class="modal-notes">${t.reason}</div>`:''} ${t.notes?`<div class="modal-section-label">Notes / Lessons</div><div class="modal-notes">${t.notes}</div>`:''}${t.photos&&t.photos.length?`<div class="modal-section-label">Trade Screenshots (${t.photos.length})</div><div class="modal-photos-row">${t.photos.map(src=>`<img src="${src}" loading="lazy" class="modal-photo-thumb" onclick="openPhotoViewer('${src}')" title="Click to enlarge">`).join('')}</div>`:''}<button class="edit-btn" onclick="editTrade('${t._docId}')">Edit Trade</button><button class="delete-btn" onclick="deleteTrade('${t._docId}')">Delete trade</button><div style="clear:both"></div>`;
-  document.getElementById('modal-overlay').classList.add('open');
+
+  const t = trades.find(x => x._docId === docId);
+
+  if (!t) return;
+
+  const ds = new Date(t.open).toLocaleString(
+    'en-GB',
+    {
+      dateStyle:'long',
+      timeStyle:'short'
+    }
+  );
+
+  const eL = {
+    calm:'Calm',
+    confident:'Confident',
+    anxious:'Anxious',
+    fearful:'Fearful',
+    greedy:'Greedy'
+  };
+
+  document.getElementById('modal-content').innerHTML = `
+
+    <button
+      class="modal-close"
+      onclick="document.getElementById('modal-overlay').classList.remove('open')">
+
+      ✕
+
+    </button>
+
+    <div class="modal-pair">
+      ${t.pair}
+
+      <span
+        style="
+          font-size:13px;
+          color:${t.dir==='Buy'?'#4ac582':'#f74a6a'};
+          font-family:'DM Sans'
+        ">
+
+        ${t.dir}
+
+      </span>
+    </div>
+
+    <div class="modal-date">${ds}</div>
+
+    <div class="modal-row">
+      <span class="modal-key">Session</span>
+
+      <span class="session-badge ${sessionClass(t.session)}">
+        ${t.session}
+      </span>
+    </div>
+
+    <div class="modal-row">
+      <span class="modal-key">Hold Duration</span>
+
+      <span
+        class="modal-val"
+        style="color:#4a9af7;font-family:'Space Mono',monospace">
+
+        ${t.durLabel}
+
+      </span>
+    </div>
+
+    <div class="modal-row">
+      <span class="modal-key">Entry</span>
+
+      <span class="modal-val">
+        ${t.entry}
+      </span>
+    </div>
+
+    <div class="modal-row">
+      <span class="modal-key">Exit</span>
+
+      <span class="modal-val">
+        ${t.exit}
+      </span>
+    </div>
+
+    ${t.sl ? `
+      <div class="modal-row">
+        <span class="modal-key">Stop Loss</span>
+
+        <span class="modal-val">
+          ${t.sl}
+        </span>
+      </div>
+    ` : ''}
+
+    ${t.tp ? `
+      <div class="modal-row">
+        <span class="modal-key">Take Profit</span>
+
+        <span class="modal-val">
+          ${t.tp}
+        </span>
+      </div>
+    ` : ''}
+
+    <div class="modal-row">
+      <span class="modal-key">Risk : Reward</span>
+
+      <span
+        class="modal-val"
+        style="color:#c5f74a">
+
+        ${t.rr}
+
+      </span>
+    </div>
+
+    <div class="modal-row">
+      <span class="modal-key">P&L</span>
+
+      <span class="pnl ${t.pnl >= 0 ? 'pos':'neg'}">
+        ${t.pnl >= 0 ? '+' : ''}$${t.pnl.toFixed(2)}
+      </span>
+    </div>
+
+    <div class="modal-row">
+      <span class="modal-key">Emotion</span>
+
+      <span class="modal-val">
+        ${eL[t.emotion] || t.emotion}
+      </span>
+    </div>
+
+    ${t.reason ? `
+      <div class="modal-section-label">
+        Setup / Reason
+      </div>
+
+      <div class="modal-notes">
+        ${t.reason}
+      </div>
+    ` : ''}
+
+    ${t.notes ? `
+      <div class="modal-section-label">
+        Notes / Lessons
+      </div>
+
+      <div class="modal-notes">
+        ${t.notes}
+      </div>
+    ` : ''}
+
+    ${t.photos && t.photos.length ? `
+      <div class="modal-section-label">
+        Trade Screenshots (${t.photos.length})
+      </div>
+
+      <div class="modal-photos-row">
+
+        ${t.photos.map(src => `
+          <img
+            src="${src}"
+            loading="lazy"
+            class="modal-photo-thumb"
+            onclick="openPhotoViewer('${src}')">
+        `).join('')}
+
+      </div>
+    ` : ''}
+
+    <button
+      class="ai-btn"
+      onclick="analyzeTrade('${t._docId}')">
+
+      Analyze Trade with AI
+
+    </button>
+
+    <button
+      class="edit-btn"
+      onclick="editTrade('${t._docId}')">
+
+      Edit Trade
+
+    </button>
+
+    <button
+      class="delete-btn"
+      onclick="deleteTrade('${t._docId}')">
+
+      Delete Trade
+
+    </button>
+
+    <div style="clear:both"></div>
+  `;
+
+  document.getElementById('modal-overlay')
+    .classList.add('open');
 };
 
+window.analyzeTrade = async function(docId) {
+
+  const trade = trades.find(t => t._docId === docId);
+const btn = event.target;
+btn.disabled = true;
+btn.style.opacity = '0.6';
+btn.style.cursor = 'not-allowed';
+  if (!trade) return;
+
+  document.getElementById('aiModal')
+    .classList.remove('hidden');
+
+  document.getElementById('aiLoading')
+    .style.display = 'block';
+
+  document.getElementById('aiResult')
+    .innerHTML = '';
+
+  try {
+
+    const response = await fetch('/api/analyze', {
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json'
+      },
+      body:JSON.stringify({
+        pair:trade.pair,
+        direction:trade.dir,
+        entry:trade.entry,
+        exit:trade.exit,
+        sl:trade.sl,
+        tp:trade.tp,
+        rr:trade.rr,
+        pnl:trade.pnl,
+        duration:trade.durLabel,
+        emotion:trade.emotion,
+        reason:trade.reason,
+        lessons:trade.notes
+      })
+    });
+if (!response.ok) {
+  throw new Error('AI request failed');
+}
+    const data = await response.json();
+
+    document.getElementById('aiLoading')
+      .style.display = 'none';
+
+    document.getElementById('aiResult')
+  .textContent = data.analysis;
+  btn.disabled = false;
+btn.style.opacity = '1';
+btn.style.cursor = 'pointer';
+
+  } catch(error) {
+
+    console.error(error);
+
+    document.getElementById('aiLoading')
+      .style.display = 'none';
+
+    document.getElementById('aiResult')
+      .innerHTML =
+        'AI analysis failed.';
+        btn.disabled = false;
+btn.style.opacity = '1';
+btn.style.cursor = 'pointer';
+  }
+};
+
+window.closeAiModal = function() {
+
+  document.getElementById('aiModal')
+    .classList.add('hidden');
+};
 window.closeModal = function(e) {
   if(e.target===document.getElementById('modal-overlay')) document.getElementById('modal-overlay').classList.remove('open');
 };
@@ -940,6 +1209,110 @@ body::before {
     opacity:1;
   }
 }
+.ai-modal{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,0.75);
+  backdrop-filter:blur(12px);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  z-index:9999;
+  animation:fadeIn 0.3s ease;
+}
+
+.ai-content{
+  width:92%;
+  max-width:800px;
+  max-height:85vh;
+  overflow-y:auto;
+  background:rgba(17,24,39,0.95);
+  border:1px solid rgba(255,255,255,0.08);
+  border-radius:24px;
+  padding:28px;
+  box-shadow:
+    0 20px 80px rgba(0,0,0,0.55),
+    0 0 40px rgba(124,58,237,0.15);
+  animation:modalPop 0.3s ease;
+}
+
+.ai-header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:22px;
+}
+
+.ai-header h2{
+  color:#c5f74a;
+  font-size:24px;
+}
+
+.ai-header button{
+  width:38px;
+  height:38px;
+  border:none;
+  border-radius:10px;
+  background:rgba(255,255,255,0.06);
+  color:white;
+  cursor:pointer;
+}
+
+.ai-btn{
+  margin-top:16px;
+  width:auto;
+  display:block;
+  background:linear-gradient(135deg,#7c3aed,#4f46e5);
+  border:none;
+  padding:14px 18px;
+  border-radius:14px;
+  color:white;
+  font-size:14px;
+  font-weight:700;
+  cursor:pointer;
+  transition:0.3s;
+  box-shadow:
+    0 10px 30px rgba(124,58,237,0.35);
+}
+
+.ai-btn:hover{
+  transform:translateY(-2px);
+  box-shadow:
+    0 14px 40px rgba(124,58,237,0.45);
+}
+
+#aiResult{
+  white-space:pre-wrap;
+  line-height:1.8;
+  color:#e5e7eb;
+  font-size:14px;
+}
+
+.hidden{
+  display:none;
+}
+
+.ai-loader{
+  width:52px;
+  height:52px;
+  border:4px solid rgba(255,255,255,0.1);
+  border-top:4px solid #c5f74a;
+  border-radius:50%;
+  animation:spin 1s linear infinite;
+  margin:auto;
+  margin-bottom:16px;
+}
+
+@keyframes spin{
+  to{
+    transform:rotate(360deg);
+  }
+}
+
+#aiLoading{
+  text-align:center;
+  padding:30px;
+}
 
 </style>
 </head>
@@ -1188,6 +1561,23 @@ body::before {
 <!-- MODAL -->
 <div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
   <div class="modal" id="modal-content"></div>
+</div>
+<div id="aiModal" class="ai-modal hidden">
+  <div class="ai-content">
+
+    <div class="ai-header">
+      <h2>AI Trading Coach</h2>
+      <button onclick="closeAiModal()">✕</button>
+    </div>
+
+    <div id="aiLoading">
+      <div class="ai-loader"></div>
+      <p>Analyzing your trade deeply...</p>
+    </div>
+
+    <div id="aiResult"></div>
+
+  </div>
 </div>
 
 </body>

@@ -67,10 +67,14 @@ Respond professionally.
 
     const data = await response.json();
 
-    const text =
-      data.candidates?.[0]?.content?.parts?.[0]?.text ||
-      'No AI response';
+   console.log(JSON.stringify(data, null, 2));
 
+const text =
+  data?.candidates?.[0]?.content?.parts
+    ?.map(p => p.text)
+    ?.join(' ') ||
+  data?.promptFeedback?.blockReason ||
+  'No AI response returned';
     res.status(200).json({
       analysis: text
     });
