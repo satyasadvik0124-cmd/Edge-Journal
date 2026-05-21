@@ -798,8 +798,8 @@ btn.style.cursor = 'pointer';
       .style.display = 'none';
 
     document.getElementById('aiResult')
-      .innerHTML =
-        'AI analysis failed.';
+      .textContent =
+        data.error || 'AI analysis failed.';
         btn.disabled = false;
 btn.style.opacity = '1';
 btn.style.cursor = 'pointer';

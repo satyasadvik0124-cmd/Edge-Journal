@@ -98,12 +98,12 @@ Respond professionally.
       analysis: text
     });
 
-  } catch (error) {
+  }} catch (error) {
 
-    console.error('AI ANALYSIS ERROR:', error);
+  console.error('AI ANALYSIS ERROR:', error);
 
-    return res.status(500).json({
-      error: 'AI analysis failed'
-    });
-  }
+  return res.status(500).json({
+    error: error.message,
+    stack: error.stack
+  });
 }
