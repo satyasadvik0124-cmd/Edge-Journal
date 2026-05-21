@@ -1,9 +1,15 @@
 export default async function handler(req, res) {
 
+  if (req.method !== 'POST') {
+    return res.status(405).json({
+      error: 'Method not allowed'
+    });
+  }
+
   try {
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${process.env.GEMINI_API_KEY}`,
       {
         method: "POST",
 
@@ -16,7 +22,7 @@ export default async function handler(req, res) {
             {
               parts: [
                 {
-                  text: "Say hello"
+                  text: "Say hello as an AI trading coach"
                 }
               ]
             }
@@ -26,17 +32,30 @@ export default async function handler(req, res) {
     );
 
     const data = await response.json();
-document.getElementById('aiResult').innerHTML = `
-  <h3>AI Trading Coach</h3>
-  <p>${data.analysis}</p>
-`;
-    console.log(data);
 
-    return res.status(200).json(data);
+    console.log("GEMINI RESPONSE:");
+    console.log(JSON.stringify(data, null, 2));
+
+    if (!response.ok) {
+
+      return res.status(response.status).json({
+        error:
+          data?.error?.message ||
+          'Gemini request failed'
+      });
+    }
+
+    const text =
+      data?.candidates?.[0]?.content?.parts?.[0]?.text
+      || 'No response';
+
+    return res.status(200).json({
+      analysis: text
+    });
 
   } catch(error) {
 
-    console.log(error);
+    console.error(error);
 
     return res.status(500).json({
       error: error.message
