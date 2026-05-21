@@ -79,12 +79,16 @@ Respond professionally.
     console.log("FULL GEMINI RESPONSE:");
     console.log(JSON.stringify(data, null, 2));
 
-    if (!response.ok) {
+   if (!response.ok) {
 
-      return res.status(response.status).json({
-        error: data?.error?.message || 'Gemini API request failed'
-      });
-    }
+  console.log("GEMINI ERROR:");
+  console.log(JSON.stringify(data, null, 2));
+
+  return res.status(response.status).json({
+    error:
+      JSON.stringify(data, null, 2)
+  });
+}
 
     const text =
       data?.candidates?.[0]?.content?.parts
