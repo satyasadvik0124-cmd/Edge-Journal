@@ -792,40 +792,22 @@ btn.style.cursor = 'not-allowed';
   })
 });
 
-const data = await response.json();
+  if (!response.ok) {
+    throw new Error('AI request failed');
+  }
 
-document.getElementById('aiResult').innerHTML = `
+  const data = await response.json();
 
-  <h3>AI Trading Coach</h3>
+  document.getElementById('aiLoading')
+    .style.display = 'none';
 
-  <p>${data.analysis}</p>
-`;
-  
-      body:JSON.stringify({
-        pair:trade.pair,
-        direction:trade.dir,
-        entry:trade.entry,
-        exit:trade.exit,
-        sl:trade.sl,
-        tp:trade.tp,
-        rr:trade.rr,
-        pnl:trade.pnl,
-        duration:trade.durLabel,
-        emotion:trade.emotion,
-        reason:trade.reason,
-        lessons:trade.notes
-      })
-    });
-if (!response.ok) {
-  throw new Error('AI request failed');
-}
-    const data = await response.json();
+  document.getElementById('aiResult')
+    .innerHTML = `
 
-    document.getElementById('aiLoading')
-      .style.display = 'none';
+      <h3>AI Trading Coach</h3>
 
-    document.getElementById('aiResult')
-  .textContent = data.analysis;
+      <p>${data.analysis}</p>
+    `;
   btn.disabled = false;
 btn.style.opacity = '1';
 btn.style.cursor = 'pointer';
