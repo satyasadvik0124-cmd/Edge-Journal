@@ -1,17 +1,15 @@
 export default async function handler(req, res) {
-
-  if (req.method !== 'POST') {
-    return res.status(405).json({
-      error: 'Method not allowed'
-    });
-  }
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-
     const trade = req.body;
+    const isFullReview = trade.pair === 'Full Account Review';
+    const isChat       = trade.pair === 'chat';
 
-    const prompt = `
-You are an elite AI trading coach.
+    // For dashboard analysis and chat, use the prompt directly from frontend
+    const prompt = (isFullReview || isChat)
+      ? trade.reason
+      : `You are an elite AI trading coach.
 
 Analyze this forex trade deeply.
 
@@ -41,73 +39,30 @@ Provide:
 5. Improvement suggestions
 6. Pattern observations
 
-Respond professionally.
-`;
+Respond professionally.`;
 
-    const response = await fetch(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        method: "POST",
-
-        headers: {
-
-          "Authorization":
-            `Bearer ${process.env.OPENROUTER_API_KEY}`,
-
-          "Content-Type":
-            "application/json",
-
-          "HTTP-Referer":
-            "https://edge-journal-sadvik.vercel.app",
-
-          "X-Title":
-            "Edge Journal"
-        },
-
-        body: JSON.stringify({
-
-          model:
-            "openai/gpt-3.5-turbo",
-
-          messages: [
-            {
-              role: "user",
-
-              content: prompt
-            }
-          ]
-        })
-      }
-    );
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://edge-journal-sadvik.vercel.app",
+        "X-Title": "Edge Journal"
+      },
+      body: JSON.stringify({
+        model: "openai/gpt-3.5-turbo",
+        messages: [{ role: "user", content: prompt }]
+      })
+    });
 
     const data = await response.json();
+    if (!response.ok) return res.status(response.status).json({ error: data?.error?.message || 'OpenRouter request failed' });
 
-    console.log("OPENROUTER RESPONSE:");
-    console.log(JSON.stringify(data, null, 2));
-
-    if (!response.ok) {
-
-      return res.status(response.status).json({
-        error:
-          data?.error?.message ||
-          'OpenRouter request failed'
-      });
-    }
-
-    const text =
-      data?.choices?.[0]?.message?.content
-      || "No response";
-
-    return res.status(200).json({
-      analysis: text
-    });
+    const text = data?.choices?.[0]?.message?.content || "No response";
+    return res.status(200).json({ analysis: text });
 
   } catch(error) {
-
     console.error(error);
-
-    return res.status(500).json({
-      error: error.message
-    });
+    return res.status(500).json({ error: error.message });
   }
 }
