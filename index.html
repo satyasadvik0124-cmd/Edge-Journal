@@ -756,41 +756,41 @@ btn.style.cursor = 'not-allowed';
 
   try {
 
-   const response = await fetch('/api/analyze', {
+  const response = await fetch('/api/analyze', {
 
-  method: 'POST',
+    method: 'POST',
 
-  headers: {
-    'Content-Type': 'application/json'
-  },
+    headers: {
+      'Content-Type': 'application/json'
+    },
 
-  body: JSON.stringify({
+    body: JSON.stringify({
 
-    pair: trade.pair,
+      pair: trade.pair,
 
-    direction: trade.direction,
+      direction: trade.direction,
 
-    entry: trade.entry,
+      entry: trade.entry,
 
-    exit: trade.exit,
+      exit: trade.exit,
 
-    sl: trade.sl,
+      sl: trade.sl,
 
-    tp: trade.tp,
+      tp: trade.tp,
 
-    rr: trade.rr,
+      rr: trade.rr,
 
-    pnl: trade.pnl,
+      pnl: trade.pnl,
 
-    duration: trade.duration,
+      duration: trade.duration,
 
-    emotion: trade.emotion,
+      emotion: trade.emotion,
 
-    reason: trade.reason,
+      reason: trade.reason,
 
-    lessons: trade.lessons
-  })
-});
+      lessons: trade.lessons
+    })
+  });
 
   if (!response.ok) {
     throw new Error('AI request failed');
@@ -808,11 +808,14 @@ btn.style.cursor = 'not-allowed';
 
       <p>${data.analysis}</p>
     `;
-  btn.disabled = false;
-btn.style.opacity = '1';
-btn.style.cursor = 'pointer';
 
-  } catch(error) {
+  btn.disabled = false;
+
+  btn.style.opacity = '1';
+
+  btn.style.cursor = 'pointer';
+
+} catch(error) {
 
   console.error(error);
 
@@ -824,10 +827,11 @@ btn.style.cursor = 'pointer';
       error.message || 'AI analysis failed.';
 
   btn.disabled = false;
+
   btn.style.opacity = '1';
+
   btn.style.cursor = 'pointer';
 }
-};
 
 window.closeAiModal = function() {
 
