@@ -720,27 +720,8 @@ window.runCoachAnalysis = async function() {
       }
     }
 
-    // Build message content — text summary + optional images
-    const userContent = [];
-
-    // Add screenshots as images if present
-    for (const photo of allPhotos) {
-      const base64 = photo.src.split(',')[1];
-      const mimeMatch = photo.src.match(/data:(image\/[^;]+);/);
-      const mediaType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
-      userContent.push({
-        type: 'image',
-        source: { type: 'base64', media_type: mediaType, data: base64 }
-      });
-      userContent.push({
-        type: 'text',
-        text: `(Screenshot above: ${photo.pair} trade — P&L $${photo.pnl.toFixed(2)})`
-      });
-    }
-
-    userContent.push({
-      type: 'text',
-      text: `You are an expert professional forex trading coach. Analyze the following trading account data thoroughly.
+    // Build full prompt text for OpenRouter
+    const fullPrompt = `You are an expert professional forex trading coach. Analyze the following trading account data thoroughly.
 
 ACCOUNT OVERVIEW:
 - Total Trades: ${total}
@@ -749,8 +730,6 @@ ACCOUNT OVERVIEW:
 
 ALL TRADES:
 ${tradeSummaries}
-
-${allPhotos.length > 0 ? `I have also provided ${allPhotos.length} trade screenshots above for visual chart analysis.` : ''}
 
 Please provide a COMPREHENSIVE account review structured into exactly these 4 sections using clear headers:
 
@@ -766,25 +745,26 @@ Identify the specific setups, sessions, pairs, emotions, and conditions under wh
 ## 📊 Overall Performance Review
 Give an honest overall assessment: grade the account (A/B/C/D), highlight the single biggest improvement opportunity, and give 3 concrete actionable steps to improve.
 
-${allPhotos.length > 0 ? 'Also include observations from the chart screenshots provided — note any patterns in chart setups, entry/exit placement, or technical mistakes visible in the images.' : ''}
-
-Be specific, data-driven, and direct. Reference actual numbers and trades from the data.`
-    });
+Be specific, data-driven, and direct. Reference actual numbers and trades from the data.`;
 
     const response = await fetch('/api/analyze', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    pair: 'Full Account',
-    direction: '—',
-    entry: '—', exit: '—', sl: '—', tp: '—', rr: '—',
-    pnl: totalPnl.toFixed(2),
-    duration: '—',
-    emotion: '—',
-    reason: tradeSummaries,
-    lessons: `Win rate: ${wr}%, Total trades: ${total}`
-  })
-});
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        pair:      'Full Account Review',
+        direction: '—',
+        entry:     '—',
+        exit:      '—',
+        sl:        '—',
+        tp:        '—',
+        rr:        '—',
+        pnl:       totalPnl.toFixed(2),
+        duration:  '—',
+        emotion:   '—',
+        reason:    fullPrompt,
+        lessons:   `${total} trades | ${wr}% win rate | $${totalPnl.toFixed(2)} total P&L`
+      })
+    });
 
     if (!response.ok) {
       const err = await response.json().catch(()=>({}));
@@ -792,7 +772,7 @@ Be specific, data-driven, and direct. Reference actual numbers and trades from t
     }
 
     const data = await response.json();
-    const raw  = data.content?.map(b=>b.text||'').join('') || 'No response received.';
+    const raw  = data.analysis || 'No response received.';
 
     // Render the markdown-like response
     area.innerHTML = `
@@ -805,7 +785,7 @@ Be specific, data-driven, and direct. Reference actual numbers and trades from t
         </div>
         <div class="coach-text" id="coach-text">${formatCoachResponse(raw)}</div>
         <div class="coach-footer">
-          <span style="font-size:10px;color:rgba(232,230,240,0.2)">Powered by Claude AI · ${new Date().toLocaleString()}</span>
+          <span style="font-size:10px;color:rgba(232,230,240,0.2)">Powered by OpenRouter · ${new Date().toLocaleString()}</span>
           <button class="coach-refresh-btn" onclick="runCoachAnalysis()">↻ Re-analyze</button>
         </div>
       </div>`;
