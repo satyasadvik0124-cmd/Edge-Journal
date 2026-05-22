@@ -720,8 +720,9 @@ window.runCoachAnalysis = async function() {
       }
     }
 
-    // Build full prompt text for OpenRouter
-    const fullPrompt = `You are an expert professional forex trading coach. Analyze the following trading account data thoroughly.
+    const fullPrompt = `You are an expert professional forex trading coach with deep knowledge of technical analysis, trading psychology, and risk management.
+
+Analyze the following trading account thoroughly and freely — go beyond any fixed format. Share everything relevant: patterns you notice, psychological tendencies, risk habits, timing insights, and anything else that would genuinely help this trader improve.
 
 ACCOUNT OVERVIEW:
 - Total Trades: ${total}
@@ -731,21 +732,7 @@ ACCOUNT OVERVIEW:
 ALL TRADES:
 ${tradeSummaries}
 
-Please provide a COMPREHENSIVE account review structured into exactly these 4 sections using clear headers:
-
-## 🔍 Trade Patterns
-Identify recurring patterns across sessions, pairs, emotions, hold times, and R:R ratios. What behaviors and tendencies repeat consistently?
-
-## ⚠️ Drawbacks & Weaknesses
-Be direct and specific about what is hurting performance. Point to exact trades or patterns as evidence. Cover psychology, execution, risk management, and session timing weaknesses.
-
-## ✅ Confidence Setups
-Identify the specific setups, sessions, pairs, emotions, and conditions under which this trader performs best. These are the high-edge scenarios they should focus on.
-
-## 📊 Overall Performance Review
-Give an honest overall assessment: grade the account (A/B/C/D), highlight the single biggest improvement opportunity, and give 3 concrete actionable steps to improve.
-
-Be specific, data-driven, and direct. Reference actual numbers and trades from the data.`;
+Give a comprehensive, honest, and actionable review. Use headers where helpful but feel free to write naturally. Be specific — reference actual trade numbers, pairs, and patterns from the data above.`;
 
     const response = await fetch('/api/analyze', {
       method: 'POST',
@@ -753,16 +740,12 @@ Be specific, data-driven, and direct. Reference actual numbers and trades from t
       body: JSON.stringify({
         pair:      'Full Account Review',
         direction: '—',
-        entry:     '—',
-        exit:      '—',
-        sl:        '—',
-        tp:        '—',
-        rr:        '—',
+        entry: '—', exit: '—', sl: '—', tp: '—', rr: '—',
         pnl:       totalPnl.toFixed(2),
         duration:  '—',
         emotion:   '—',
         reason:    fullPrompt,
-        lessons:   `${total} trades | ${wr}% win rate | $${totalPnl.toFixed(2)} total P&L`
+        lessons:   `${total} trades | ${wr}% win rate | $${totalPnl.toFixed(2)} P&L`
       })
     });
 
@@ -781,7 +764,6 @@ Be specific, data-driven, and direct. Reference actual numbers and trades from t
           <span class="coach-meta-pill">${total} trades analyzed</span>
           <span class="coach-meta-pill c-wr">${wr}% win rate</span>
           <span class="coach-meta-pill ${totalPnl>=0?'c-profit':'c-loss'}">${totalPnl>=0?'+':''}$${totalPnl.toFixed(2)} total P&L</span>
-          ${allPhotos.length ? `<span class="coach-meta-pill c-photos">📸 ${allPhotos.length} screenshots reviewed</span>` : ''}
         </div>
         <div class="coach-text" id="coach-text">${formatCoachResponse(raw)}</div>
         <div class="coach-footer">
@@ -1317,6 +1299,312 @@ body::before {
     <div id="aiResult"></div>
   </div>
 </div>
+
+<!-- ─── FLOATING AI CHAT ─── -->
+<div id="chat-bubble" onclick="toggleChat()" title="Chat with AI Coach">
+  <span id="chat-bubble-icon">🧠</span>
+  <span id="chat-bubble-label">AI Chat</span>
+  <span id="chat-unread" class="chat-unread hidden"></span>
+</div>
+
+<div id="chat-panel" class="chat-panel hidden">
+  <div class="chat-header">
+    <div>
+      <div style="font-weight:600;font-size:13px">AI Trading Coach</div>
+      <div style="font-size:10px;color:rgba(232,230,240,0.4)" id="chat-status">Knows your trades · ask anything</div>
+    </div>
+    <button class="chat-close-btn" onclick="toggleChat()">✕</button>
+  </div>
+  <div class="chat-messages" id="chat-messages">
+    <div class="chat-msg ai">
+      <div class="chat-bubble-msg">Hey! I'm your AI trading coach. I have full context of your trades. Ask me anything — about your patterns, a specific trade, psychology, strategy, or anything forex related. 📈</div>
+    </div>
+  </div>
+  <div class="chat-input-row">
+    <textarea id="chat-input" class="chat-textarea" placeholder="Ask anything about your trades…" rows="1" onkeydown="handleChatKey(event)" oninput="autoResizeChat(this)"></textarea>
+    <button class="chat-send-btn" onclick="sendChatMessage()" id="chat-send-btn">➤</button>
+  </div>
+</div>
+
+<style>
+/* ─── CHAT BUBBLE ─── */
+#chat-bubble {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: linear-gradient(135deg, #c5f74a, #4ac582);
+  color: #0a0a0f;
+  border-radius: 50px;
+  padding: 11px 18px 11px 14px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  z-index: 900;
+  box-shadow: 0 4px 24px rgba(197,247,74,0.25);
+  transition: transform 0.15s, box-shadow 0.15s;
+  user-select: none;
+}
+#chat-bubble:hover { transform: scale(1.05); box-shadow: 0 6px 32px rgba(197,247,74,0.4); }
+.chat-unread {
+  position: absolute;
+  top: -4px; right: -4px;
+  background: #f74a6a;
+  color: #fff;
+  border-radius: 50%;
+  width: 16px; height: 16px;
+  font-size: 9px;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700;
+}
+
+/* ─── CHAT PANEL ─── */
+.chat-panel {
+  position: fixed;
+  bottom: 80px;
+  right: 24px;
+  width: 360px;
+  max-height: 520px;
+  background: #13131a;
+  border: 1px solid rgba(197,247,74,0.15);
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  z-index: 901;
+  box-shadow: 0 8px 48px rgba(0,0,0,0.6);
+  overflow: hidden;
+  transition: opacity 0.2s, transform 0.2s;
+}
+.chat-panel.hidden { display: none; }
+
+.chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(232,230,240,0.07);
+  background: rgba(197,247,74,0.04);
+}
+.chat-close-btn {
+  background: none;
+  border: none;
+  color: rgba(232,230,240,0.4);
+  font-size: 15px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 6px;
+  transition: color 0.15s, background 0.15s;
+}
+.chat-close-btn:hover { color: #e8e6f0; background: rgba(232,230,240,0.08); }
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 14px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(197,247,74,0.15) transparent;
+}
+.chat-msg { display: flex; }
+.chat-msg.ai  { justify-content: flex-start; }
+.chat-msg.user { justify-content: flex-end; }
+.chat-bubble-msg {
+  max-width: 85%;
+  padding: 10px 13px;
+  border-radius: 14px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: #e8e6f0;
+}
+.chat-msg.ai  .chat-bubble-msg { background: rgba(232,230,240,0.07); border-bottom-left-radius: 4px; }
+.chat-msg.user .chat-bubble-msg { background: rgba(197,247,74,0.15); border-bottom-right-radius: 4px; color: #c5f74a; }
+.chat-msg.ai .chat-bubble-msg strong { color: #c5f74a; }
+.chat-typing .chat-bubble-msg { opacity: 0.5; font-style: italic; }
+
+.chat-input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  border-top: 1px solid rgba(232,230,240,0.07);
+}
+.chat-textarea {
+  flex: 1;
+  background: rgba(232,230,240,0.06);
+  border: 1px solid rgba(232,230,240,0.1);
+  border-radius: 10px;
+  color: #e8e6f0;
+  font-size: 12.5px;
+  padding: 9px 12px;
+  resize: none;
+  font-family: 'DM Sans', sans-serif;
+  line-height: 1.4;
+  max-height: 100px;
+  overflow-y: auto;
+  transition: border-color 0.15s;
+}
+.chat-textarea:focus { outline: none; border-color: rgba(197,247,74,0.3); }
+.chat-textarea::placeholder { color: rgba(232,230,240,0.25); }
+.chat-send-btn {
+  background: linear-gradient(135deg, #c5f74a, #4ac582);
+  border: none;
+  border-radius: 10px;
+  color: #0a0a0f;
+  font-size: 14px;
+  width: 36px; height: 36px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  transition: opacity 0.15s, transform 0.1s;
+}
+.chat-send-btn:hover { opacity: 0.85; transform: scale(1.05); }
+.chat-send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+@media (max-width: 480px) {
+  .chat-panel { width: calc(100vw - 24px); right: 12px; bottom: 74px; }
+  #chat-bubble { right: 12px; bottom: 12px; }
+}
+</style>
+
+<script>
+// ─── CHAT STATE ───
+let chatHistory = [];
+let chatOpen = false;
+
+function buildTradeContext() {
+  if (!trades || !trades.length) return 'No trades logged yet.';
+  const total    = trades.length;
+  const wins     = trades.filter(t=>t.pnl>0).length;
+  const losses   = trades.filter(t=>t.pnl<0).length;
+  const totalPnl = trades.reduce((s,t)=>s+t.pnl,0);
+  const wr       = total ? Math.round(wins/total*100) : 0;
+  const summaries = trades.map((t,i) =>
+    `Trade ${i+1}: ${t.pair} ${t.dir} | Entry ${t.entry} Exit ${t.exit} | P&L $${t.pnl.toFixed(2)} | R:R ${t.rr} | Session: ${t.session} | Duration: ${t.durLabel||'—'} | Emotion: ${t.emotion} | Setup: "${t.reason||'—'}" | Notes: "${t.notes||'—'}"`
+  ).join('\n');
+  return `Total Trades: ${total} | Win Rate: ${wr}% (${wins}W/${losses}L) | Total P&L: $${totalPnl.toFixed(2)}\n\nTrades:\n${summaries}`;
+}
+
+window.toggleChat = function() {
+  chatOpen = !chatOpen;
+  const panel = document.getElementById('chat-panel');
+  const unread = document.getElementById('chat-unread');
+  if (chatOpen) {
+    panel.classList.remove('hidden');
+    unread.classList.add('hidden');
+    setTimeout(() => {
+      const msgs = document.getElementById('chat-messages');
+      msgs.scrollTop = msgs.scrollHeight;
+      document.getElementById('chat-input').focus();
+    }, 50);
+  } else {
+    panel.classList.add('hidden');
+  }
+};
+
+window.handleChatKey = function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); }
+};
+
+window.autoResizeChat = function(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 100) + 'px';
+};
+
+function appendChatMsg(role, text, isTyping) {
+  const msgs = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'chat-msg ' + role + (isTyping ? ' chat-typing' : '');
+  if (isTyping) div.id = 'chat-typing-indicator';
+  div.innerHTML = `<div class="chat-bubble-msg">${formatChatText(text)}</div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
+
+function formatChatText(text) {
+  return text
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+    .replace(/^#{1,3} (.+)$/gm, '<strong style="color:#c5f74a">$1</strong>')
+    .replace(/^- (.+)$/gm, '▸ $1')
+    .replace(/\n/g, '<br>');
+}
+
+window.sendChatMessage = async function() {
+  const input = document.getElementById('chat-input');
+  const userText = input.value.trim();
+  if (!userText) return;
+
+  const sendBtn = document.getElementById('chat-send-btn');
+  input.value = '';
+  input.style.height = 'auto';
+  sendBtn.disabled = true;
+
+  appendChatMsg('user', userText);
+  const typingEl = appendChatMsg('ai', '…', true);
+
+  // Build messages array with trade context as system message in first turn
+  const systemContext = `You are an expert forex trading coach. You have full context of the trader's account:\n\n${buildTradeContext()}\n\nAnswer freely and naturally. Be specific, direct, and helpful. Reference their actual trades when relevant.`;
+
+  const messages = [];
+  // Inject context into first user message if this is a fresh conversation
+  if (chatHistory.length === 0) {
+    messages.push({ role: 'user', content: systemContext + '\n\nUser says: ' + userText });
+  } else {
+    // Rebuild history
+    chatHistory.forEach(m => messages.push(m));
+    messages.push({ role: 'user', content: userText });
+  }
+
+  try {
+    const res = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        pair:      'chat',
+        direction: '—',
+        entry: '—', exit: '—', sl: '—', tp: '—', rr: '—',
+        pnl: '0', duration: '—', emotion: '—',
+        reason: chatHistory.length === 0
+          ? systemContext + '\n\nUser says: ' + userText
+          : 'Conversation history:\n' + chatHistory.map(m => m.role.toUpperCase() + ': ' + m.content).join('\n') + '\n\nUser says: ' + userText,
+        lessons: 'chat mode'
+      })
+    });
+
+    const data = await res.json();
+    const reply = data.analysis || 'Sorry, I couldn\'t get a response. Try again.';
+
+    // Update history
+    chatHistory.push({ role: 'user', content: userText });
+    chatHistory.push({ role: 'assistant', content: reply });
+    // Keep last 10 turns to avoid token overflow
+    if (chatHistory.length > 20) chatHistory = chatHistory.slice(-20);
+
+    typingEl.remove();
+    appendChatMsg('ai', reply);
+
+    // Show unread badge if chat is closed
+    if (!chatOpen) {
+      const unread = document.getElementById('chat-unread');
+      unread.classList.remove('hidden');
+      unread.textContent = '1';
+    }
+
+  } catch(err) {
+    typingEl.remove();
+    appendChatMsg('ai', 'Something went wrong. Please try again.');
+    console.error('Chat error:', err);
+  } finally {
+    sendBtn.disabled = false;
+    document.getElementById('chat-input').focus();
+  }
+};
+</script>
 
 </body>
 </html>
