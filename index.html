@@ -832,15 +832,13 @@ btn.style.cursor = 'not-allowed';
 
   btn.style.cursor = 'pointer';
 }
-
+};
 window.closeAiModal = function() {
 
   document.getElementById('aiModal')
     .classList.add('hidden');
 };
-window.closeModal = function(e) {
-  if(e.target===document.getElementById('modal-overlay')) document.getElementById('modal-overlay').classList.remove('open');
-};
+
 
 
 window.editTrade = function(docId) {
