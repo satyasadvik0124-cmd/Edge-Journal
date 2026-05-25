@@ -5,13 +5,14 @@ export default async function handler(req, res) {
     const trade = req.body;
     const isFullReview = trade.pair === 'Full Account Review';
     const isChat       = trade.pair === 'chat';
+    const hasPhotos    = trade.photos && trade.photos.length > 0;
 
-    // For dashboard analysis and chat, use the prompt directly from frontend
     const prompt = (isFullReview || isChat)
       ? trade.reason
       : `You are an elite AI trading coach.
 
 Analyze this forex trade deeply.
+${hasPhotos ? 'I have attached chart screenshots — analyze the chart setup, entry/exit placement, and any visual patterns you see.' : ''}
 
 Trade Details:
 Pair: ${trade.pair}
@@ -38,8 +39,22 @@ Provide:
 4. Execution mistakes
 5. Improvement suggestions
 6. Pattern observations
+${hasPhotos ? '7. Chart screenshot analysis — what you see in the images' : ''}
 
 Respond professionally.`;
+
+    const messages = hasPhotos
+      ? [{
+          role: 'user',
+          content: [
+            ...trade.photos.map(b64 => ({
+              type: 'image_url',
+              image_url: { url: b64 }
+            })),
+            { type: 'text', text: prompt }
+          ]
+        }]
+      : [{ role: 'user', content: prompt }];
 
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
@@ -50,8 +65,8 @@ Respond professionally.`;
         "X-Title": "Edge Journal"
       },
       body: JSON.stringify({
-        model: "openai/gpt-3.5-turbo",
-        messages: [{ role: "user", content: prompt }]
+        model: "google/gemini-2.0-flash-001",  // vision capable, fast & cheap
+        messages
       })
     });
 

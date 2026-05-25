@@ -52,17 +52,40 @@ let editingTradeId = null;
 // ─── PHOTO HANDLING ───
 let selectedPhotos = [];
 
+// Compress image to max ~400KB base64 so Firestore 1MB limit is never hit
+function compressPhoto(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const MAX = 1000; // max width/height px
+      let w = img.width, h = img.height;
+      if (w > MAX || h > MAX) {
+        if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+        else       { w = Math.round(w * MAX / h); h = MAX; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      // Try quality 0.7 first, drop to 0.5 if still large
+      let data = canvas.toDataURL('image/jpeg', 0.7);
+      if (data.length > 550000) data = canvas.toDataURL('image/jpeg', 0.5);
+      resolve(data);
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
 window.handlePhotoSelect = function(e) {
   const files = Array.from(e.target.files).slice(0, 3);
-  const promises = files.map(f => new Promise((res, rej) => {
-    const r = new FileReader();
-    r.onload = ev => res({ data: ev.target.result, name: f.name });
-    r.onerror = rej;
-    r.readAsDataURL(f);
-  }));
-  Promise.all(promises).then(results => {
-    selectedPhotos = results.map(r => r.data);
+  Promise.all(files.map(compressPhoto)).then(results => {
+    selectedPhotos = results;
     renderPhotoPreviews(selectedPhotos);
+  }).catch(err => {
+    console.error('Photo compress error:', err);
+    alert('Could not load photo. Try a different image.');
   });
   e.target.value = '';
 };
@@ -249,8 +272,11 @@ window.logTrade = async function() {
     renderDashboard();
 
   } catch(e) {
-    alert('Failed to save trade. Check your internet connection.');
-    console.error(e);
+    console.error('Firestore save error:', e);
+    const msg = e?.message || e?.code || String(e);
+    alert('Failed to save trade.
+
+Reason: ' + msg);
   } finally {
     logBtn.textContent = editingTradeId ? 'Update Trade' : 'Log Trade →';
     logBtn.disabled = false;
@@ -613,17 +639,18 @@ window.analyzeTrade = async function(docId) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         pair:      trade.pair,
-        direction: trade.dir,       // FIX: was trade.direction
+        direction: trade.dir,
         entry:     trade.entry,
         exit:      trade.exit,
         sl:        trade.sl,
         tp:        trade.tp,
         rr:        trade.rr,
         pnl:       trade.pnl,
-        duration:  trade.durLabel,  // FIX: was trade.duration
+        duration:  trade.durLabel,
         emotion:   trade.emotion,
         reason:    trade.reason,
-        lessons:   trade.notes      // FIX: was trade.lessons
+        lessons:   trade.notes,
+        photos:    trade.photos || []
       })
     });
 
@@ -631,7 +658,10 @@ window.analyzeTrade = async function(docId) {
 
     const data = await response.json();
     document.getElementById('aiLoading').style.display = 'none';
-    document.getElementById('aiResult').innerHTML = `<h3>AI Trading Coach</h3><p>${data.analysis}</p>`;
+    const photoNote = (trade.photos && trade.photos.length)
+      ? `<div style="font-size:11px;color:rgba(197,247,74,0.6);margin-bottom:8px">📸 ${trade.photos.length} screenshot(s) analyzed</div>`
+      : '';
+    document.getElementById('aiResult').innerHTML = `<h3>AI Trading Coach</h3>${photoNote}<p>${data.analysis}</p>`;
 
   } catch(error) {
     console.error(error);
