@@ -274,9 +274,7 @@ window.logTrade = async function() {
   } catch(e) {
     console.error('Firestore save error:', e);
     const msg = e?.message || e?.code || String(e);
-    alert('Failed to save trade.
-
-Reason: ' + msg);
+    alert('Failed to save trade. Reason: ' + msg);
   } finally {
     logBtn.textContent = editingTradeId ? 'Update Trade' : 'Log Trade →';
     logBtn.disabled = false;
