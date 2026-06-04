@@ -7,7 +7,6 @@ export default async function handler(req, res) {
     const isChat       = trade.pair === 'chat';
     const hasPhotos    = trade.photos && trade.photos.length > 0;
 
-    // ── Log key presence (check Vercel logs if still broken) ──
     console.log('OpenRouter key present:', !!process.env.OPENROUTER_API_KEY);
 
     const prompt = (isFullReview || isChat)
@@ -46,11 +45,7 @@ ${hasPhotos ? '7. Chart screenshot analysis — what you see in the images' : ''
 
 Respond professionally.`;
 
-    // ── Vision model: use google/gemini-2.0-flash-exp:free (correct slug) ──
-    // ── For text-only requests use a cheaper/faster model ──
-    const model = hasPhotos
-      ? 'google/gemini-2.0-flash-exp:free'
-      : 'google/gemini-2.0-flash-exp:free';
+    const model = 'meta-llama/llama-3.1-8b-instruct:free';
 
     const messages = hasPhotos
       ? [{
@@ -78,7 +73,6 @@ Respond professionally.`;
 
     const data = await response.json();
 
-    // ── Surface the real OpenRouter error in Vercel logs ──
     if (!response.ok) {
       console.error('OpenRouter error:', JSON.stringify(data));
       return res.status(response.status).json({
