@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -8,12 +7,12 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 
-<!-- Firebase compat SDKs — loaded as regular scripts so window.* functions work from inline onclick handlers -->
+<!-- Firebase compat SDKs -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script>
-// Thin shims so the rest of the code below is unchanged
+// Firebase shims
 function createUserWithEmailAndPassword(auth, email, pass) { return auth.createUserWithEmailAndPassword(email, pass); }
 function signInWithEmailAndPassword(auth, email, pass)     { return auth.signInWithEmailAndPassword(email, pass); }
 function signOut(auth)                                     { return auth.signOut(); }
@@ -51,15 +50,17 @@ let editingTradeId = null;
 
 // ─── PHOTO HANDLING ───
 let selectedPhotos = [];
+let cameraStream = null;
+let currentFacingMode = 'environment';
 
-// Compress image to max ~400KB base64 so Firestore 1MB limit is never hit
+// Compress image to max ~400KB base64
 function compressPhoto(file) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
       URL.revokeObjectURL(url);
-      const MAX = 1000; // max width/height px
+      const MAX = 1000;
       let w = img.width, h = img.height;
       if (w > MAX || h > MAX) {
         if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
@@ -68,7 +69,6 @@ function compressPhoto(file) {
       const canvas = document.createElement('canvas');
       canvas.width = w; canvas.height = h;
       canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-      // Try quality 0.7 first, drop to 0.5 if still large
       let data = canvas.toDataURL('image/jpeg', 0.7);
       if (data.length > 550000) data = canvas.toDataURL('image/jpeg', 0.5);
       resolve(data);
@@ -78,16 +78,149 @@ function compressPhoto(file) {
   });
 }
 
+// Handle gallery upload
 window.handlePhotoSelect = function(e) {
-  const files = Array.from(e.target.files).slice(0, 3);
+  const remaining = 3 - selectedPhotos.length;
+  if (remaining <= 0) {
+    alert('Maximum 3 photos allowed. Please remove some first.');
+    e.target.value = '';
+    return;
+  }
+  
+  const files = Array.from(e.target.files).slice(0, remaining);
   Promise.all(files.map(compressPhoto)).then(results => {
-    selectedPhotos = results;
+    selectedPhotos = [...selectedPhotos, ...results];
     renderPhotoPreviews(selectedPhotos);
   }).catch(err => {
     console.error('Photo compress error:', err);
     alert('Could not load photo. Try a different image.');
   });
   e.target.value = '';
+};
+
+// Handle camera file input (fallback for mobile)
+window.handleCameraCapture = function(e) {
+  const remaining = 3 - selectedPhotos.length;
+  if (remaining <= 0) {
+    alert('Maximum 3 photos allowed. Please remove some first.');
+    e.target.value = '';
+    return;
+  }
+  
+  const files = Array.from(e.target.files).slice(0, remaining);
+  Promise.all(files.map(compressPhoto)).then(results => {
+    selectedPhotos = [...selectedPhotos, ...results];
+    renderPhotoPreviews(selectedPhotos);
+  }).catch(err => {
+    console.error('Photo compress error:', err);
+    alert('Could not load photo. Try a different image.');
+  });
+  e.target.value = '';
+};
+
+// Open camera modal
+window.openCameraCapture = async function() {
+  if (selectedPhotos.length >= 3) {
+    alert('Maximum 3 photos allowed. Please remove one first.');
+    return;
+  }
+  
+  const modal = document.getElementById('camera-modal');
+  modal.style.display = 'flex';
+  
+  try {
+    await startCamera(currentFacingMode);
+  } catch (err) {
+    console.error('Camera error:', err);
+    alert('Could not access camera. Please check permissions.');
+    closeCameraModal();
+  }
+};
+
+// Start camera stream
+async function startCamera(facingMode) {
+  const video = document.getElementById('camera-preview');
+  
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(track => track.stop());
+  }
+  
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: facingMode,
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
+      },
+      audio: false
+    });
+    
+    video.srcObject = cameraStream;
+    video.play();
+    
+    if (facingMode === 'user') {
+      video.style.transform = 'scaleX(-1)';
+    } else {
+      video.style.transform = 'scaleX(1)';
+    }
+  } catch (err) {
+    console.error('Error starting camera:', err);
+    throw err;
+  }
+}
+
+// Switch between front and back camera
+window.switchCamera = async function() {
+  currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+  
+  try {
+    await startCamera(currentFacingMode);
+  } catch (err) {
+    console.error('Error switching camera:', err);
+  }
+};
+
+// Capture photo from camera
+window.capturePhoto = async function() {
+  const video = document.getElementById('camera-preview');
+  const canvas = document.getElementById('camera-canvas');
+  
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  
+  const imageData = canvas.toDataURL('image/jpeg', 0.7);
+  
+  selectedPhotos.push(imageData);
+  renderPhotoPreviews(selectedPhotos);
+  
+  closeCameraModal();
+  
+  // Flash effect
+  const flash = document.createElement('div');
+  flash.style.cssText = 'position:fixed;inset:0;background:white;z-index:99999;pointer-events:none;opacity:0.8;transition:opacity 0.3s;';
+  document.body.appendChild(flash);
+  
+  setTimeout(() => {
+    flash.style.opacity = '0';
+    setTimeout(() => flash.remove(), 300);
+  }, 50);
+};
+
+// Close camera modal
+window.closeCameraModal = function() {
+  const modal = document.getElementById('camera-modal');
+  modal.style.display = 'none';
+  
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(track => track.stop());
+    cameraStream = null;
+  }
+  
+  const video = document.getElementById('camera-preview');
+  video.srcObject = null;
 };
 
 window.removePhoto = function(idx) {
@@ -98,12 +231,54 @@ window.removePhoto = function(idx) {
 function renderPhotoPreviews(photos) {
   const row = document.getElementById('photo-preview-row');
   if (!photos.length) { row.innerHTML = ''; return; }
-  row.innerHTML = photos.map((src, i) => `
-    <div class="photo-thumb-wrap">
-      <img src="${src}" loading="lazy" class="photo-thumb" onclick="openPhotoViewer('${src}')" title="Click to enlarge">
-      <button class="photo-remove-btn" onclick="removePhoto(${i})">✕</button>
-    </div>`).join('');
+  
+  row.innerHTML = `
+    <div style="width:100%; display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+      <span style="font-size:11px; color:var(--hint);">${photos.length}/3 photos</span>
+      ${photos.length >= 3 ? '<span style="font-size:10px; color:#f7a44a;">Limit reached</span>' : ''}
+    </div>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      ${photos.map((src, i) => `
+        <div class="photo-thumb-wrap">
+          <img src="${src}" loading="lazy" class="photo-thumb" onclick="openPhotoViewer('${src}')" title="Click to enlarge">
+          <button class="photo-remove-btn" onclick="removePhoto(${i})">✕</button>
+        </div>
+      `).join('')}
+      ${photos.length < 3 ? `
+        <div class="photo-upload-area" onclick="showUploadOptions()" style="width:90px; height:70px; display:flex; align-items:center; justify-content:center; padding:0; cursor:pointer;">
+          <span style="font-size:20px; color:var(--hint);">+</span>
+        </div>
+      ` : ''}
+    </div>
+  `;
 }
+
+// Show upload options mini menu
+window.showUploadOptions = function() {
+  const popup = document.createElement('div');
+  popup.style.cssText = 'position:fixed; background:#1a1a24; border:1px solid rgba(197,247,74,0.2); border-radius:10px; padding:8px; z-index:1000; box-shadow:0 8px 32px rgba(0,0,0,0.5);';
+  popup.innerHTML = `
+    <div style="display:flex; flex-direction:column; gap:4px;">
+      <button onclick="document.getElementById('f-photos').click(); this.parentElement.parentElement.remove();" style="background:transparent; border:none; color:white; padding:8px 16px; cursor:pointer; text-align:left; border-radius:6px; font-size:13px; white-space:nowrap;">🖼️ Gallery</button>
+      <button onclick="openCameraCapture(); this.parentElement.parentElement.remove();" style="background:transparent; border:none; color:white; padding:8px 16px; cursor:pointer; text-align:left; border-radius:6px; font-size:13px; white-space:nowrap;">📷 Camera</button>
+    </div>
+  `;
+  
+  document.body.appendChild(popup);
+  
+  const rect = event.target.getBoundingClientRect();
+  popup.style.left = rect.left + 'px';
+  popup.style.top = (rect.bottom + 5) + 'px';
+  
+  document.addEventListener('click', function closePopup(e) {
+    if (!popup.contains(e.target)) {
+      popup.remove();
+      document.removeEventListener('click', closePopup);
+    }
+  });
+  
+  event.stopPropagation();
+};
 
 window.openPhotoViewer = function(src) {
   const ov = document.createElement('div');
@@ -374,14 +549,12 @@ window.showAuthTab = function(tab) {
   clearAuthError();
 };
 
-// ─── FIX 1: closeModal — was missing, caused "onclick" crash on modal overlay ───
 window.closeModal = function(e) {
   if (e.target === document.getElementById('modal-overlay')) {
     document.getElementById('modal-overlay').classList.remove('open');
   }
 };
 
-// ─── DESTROY CHART ───
 function destroyChart(id) { if(charts[id]) { charts[id].destroy(); delete charts[id]; } }
 
 // ─── DASHBOARD ───
@@ -538,13 +711,11 @@ function renderPatterns() {
   document.getElementById('emotion-breakdown').innerHTML  = detailRows(eG, e=>emoColors[e]||'#c5f74a', emotions);
   document.getElementById('duration-breakdown').innerHTML = detailRows(dG, ()=>'#4a9af7', buckets);
 
-  // Hourly heatmap
   const hourly = Array(24).fill(null).map(()=>({wins:0,losses:0,breakeven:0,total:0}));
   trades.forEach(t => { if(t.open){const h=new Date(t.open).getUTCHours();hourly[h].total++;if(t.pnl>0)hourly[h].wins++;else if(t.pnl<0)hourly[h].losses++;else hourly[h].breakeven++;} });
   const maxT = Math.max(...hourly.map(h=>h.total),1);
   document.getElementById('hourly-heatmap').innerHTML = `<div style="display:flex;gap:2px;align-items:flex-end">${hourly.map((h,i)=>{const wr=h.total?h.wins/h.total:0;const intensity=h.total/maxT;const col=h.total===0?'rgba(255,255,255,0.04)':wr>=0.5?`rgba(197,247,74,${0.15+intensity*0.7})`:`rgba(247,74,106,${0.15+intensity*0.7})`;const lr=h.total?Math.round(h.losses/h.total*100):0;const br=h.total?Math.round(h.breakeven/h.total*100):0;return`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px"><div style="width:100%;height:40px;border-radius:3px;background:${col}" title="${i}:00 UTC — ${h.total} trades · ${Math.round(wr*100)}% W · ${lr}% L · ${br}% B/E"></div><div style="font-size:8px;color:rgba(232,230,240,0.25)">${i%4===0?i:''}</div></div>`;}).join('')}</div><div style="display:flex;gap:16px;margin-top:10px;font-size:10px;color:rgba(232,230,240,0.35)"><span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:2px;background:rgba(197,247,74,0.6);display:inline-block"></span>High win rate</span><span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:2px;background:rgba(247,74,106,0.6);display:inline-block"></span>High loss rate</span><span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:2px;background:rgba(255,255,255,0.1);display:inline-block"></span>No trades</span></div>`;
 
-  // Pair × Session combos
   const combos = {};
   trades.forEach(t => {
     const k = t.pair+' × '+t.session;
@@ -617,7 +788,7 @@ window.openTrade = function(docId) {
   document.getElementById('modal-overlay').classList.add('open');
 };
 
-// ─── FIX 2: analyzeTrade — corrected property names (dir, durLabel, notes) ───
+// ─── ANALYZE TRADE ───
 window.analyzeTrade = async function(docId) {
   const trade = trades.find(t => t._docId === docId);
   if (!trade) return;
@@ -725,20 +896,17 @@ window.runCoachAnalysis = async function() {
     </div>`;
 
   try {
-    // Build a rich trade summary for the AI
     const total    = trades.length;
     const wins     = trades.filter(t=>t.pnl>0).length;
     const losses   = trades.filter(t=>t.pnl<0).length;
     const totalPnl = trades.reduce((s,t)=>s+t.pnl,0);
     const wr       = total ? Math.round(wins/total*100) : 0;
 
-    // Summarise each trade compactly
     const tradeSummaries = trades.map((t,i) => {
       const hasPhotos = t.photos && t.photos.length > 0;
       return `Trade ${i+1}: ${t.pair} ${t.dir} | Entry ${t.entry} Exit ${t.exit} | P&L $${t.pnl.toFixed(2)} | R:R ${t.rr} | Session: ${t.session} | Duration: ${t.durLabel||'—'} | Emotion: ${t.emotion} | Setup: "${t.reason||'—'}" | Notes: "${t.notes||'—'}" | Screenshots: ${hasPhotos ? t.photos.length : 0}`;
     }).join('\n');
 
-    // Collect up to 6 screenshots across trades for visual analysis
     const allPhotos = [];
     for (const t of trades) {
       if (t.photos && t.photos.length) {
@@ -785,7 +953,6 @@ Give a comprehensive, honest, and actionable review. Use headers where helpful b
     const data = await response.json();
     const raw  = data.analysis || 'No response received.';
 
-    // Render the markdown-like response
     area.innerHTML = `
       <div class="coach-response">
         <div class="coach-meta">
@@ -817,7 +984,6 @@ Give a comprehensive, honest, and actionable review. Use headers where helpful b
 };
 
 function formatCoachResponse(text) {
-  // Convert markdown-like headers and formatting to styled HTML
   return text
     .replace(/## (🔍 Trade Patterns)/g,    '<div class="coach-section-header patterns">$1</div>')
     .replace(/## (⚠️ Drawbacks[^<\n]*)/g,  '<div class="coach-section-header drawbacks">$1</div>')
@@ -834,7 +1000,6 @@ function formatCoachResponse(text) {
     + '</p>';
 }
 
-
 const now = new Date();
 now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
 document.getElementById('f-open').value = now.toISOString().slice(0, 16);
@@ -850,7 +1015,6 @@ document.getElementById('f-open').value = now.toISOString().slice(0, 16);
 }
 body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
 
-/* AUTH SCREEN */
 #auth-screen {
   display:flex; align-items:center; justify-content:center;
   min-height:100vh; padding:20px;
@@ -872,7 +1036,6 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .auth-btn:disabled { opacity:0.5; cursor:not-allowed; }
 .auth-error { display:none; background:rgba(247,74,106,0.1); border:0.5px solid rgba(247,74,106,0.25); border-radius:7px; padding:10px 13px; font-size:12px; color:#f74a6a; margin-bottom:14px; }
 
-/* APP */
 #app-screen { display:none; }
 .nav { display:flex; align-items:center; justify-content:space-between; padding:16px 28px; border-bottom:1px solid rgba(255,255,255,0.08); background:rgba(5,5,7,0.75); backdrop-filter:blur(16px); position:sticky; top:0; z-index:100; }
 .nav-logo { font-family:'Space Mono',monospace; font-size:14px; font-weight:700; color:var(--green); }
@@ -892,7 +1055,6 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .nav-btn { padding:7px 15px; border-radius:7px; background:var(--green); color:#0a0a0f; border:none; font-family:'DM Sans',sans-serif; font-size:12px; font-weight:600; cursor:pointer; }
 .nav-btn:hover { background:#d4f96a; }
 
-/* VIEWS */
 .view { display:none; padding:22px 24px; }
 .view.active { display:block; }
 .stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; margin-bottom:18px; }
@@ -975,7 +1137,6 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .dpill.total{background:rgba(255,255,255,0.05);color:rgba(232,230,240,0.5);border:0.5px solid rgba(255,255,255,0.08)}
 .edit-btn{background:rgba(74,154,247,0.12);border:1px solid rgba(74,154,247,0.25);color:#4a9af7;border-radius:8px;padding:8px 14px;cursor:pointer;margin-right:10px;font-weight:600;font-family:'DM Sans',sans-serif;font-size:12px}
 
-/* ── AI COACH DASHBOARD ── */
 .ai-coach-card { border-color: rgba(197,247,74,0.12) !important; }
 .ai-coach-btn {
   display:flex; align-items:center; gap:7px; padding:9px 18px;
@@ -999,7 +1160,6 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .coach-meta-pill.c-wr { background:rgba(74,197,130,0.1); color:#4ac582; border-color:rgba(74,197,130,0.2); }
 .coach-meta-pill.c-profit { background:rgba(197,247,74,0.1); color:#c5f74a; border-color:rgba(197,247,74,0.2); }
 .coach-meta-pill.c-loss { background:rgba(247,74,106,0.1); color:#f74a6a; border-color:rgba(247,74,106,0.2); }
-.coach-meta-pill.c-photos { background:rgba(74,154,247,0.1); color:#4a9af7; border-color:rgba(74,154,247,0.2); }
 .coach-text { font-size:13px; line-height:1.75; color:rgba(232,230,240,0.78); }
 .coach-section-header { font-size:13px; font-weight:700; margin:20px 0 10px; padding:8px 12px; border-radius:7px; border-left:3px solid; }
 .coach-section-header.patterns   { color:#4a9af7; background:rgba(74,154,247,0.07); border-left-color:#4a9af7; }
@@ -1007,13 +1167,11 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .coach-section-header.confidence { color:#4ac582; background:rgba(74,197,130,0.07); border-left-color:#4ac582; }
 .coach-section-header.overall    { color:#c5f74a; background:rgba(197,247,74,0.06); border-left-color:#c5f74a; }
 .coach-bullet { padding:4px 0 4px 14px; font-size:12.5px; color:rgba(232,230,240,0.72); }
-.coach-bullet::before { content:''; }
 .coach-para { margin:6px 0; }
 .coach-footer { display:flex; justify-content:space-between; align-items:center; margin-top:18px; padding-top:14px; border-top:0.5px solid rgba(255,255,255,0.06); flex-wrap:wrap; gap:8px; }
 .coach-refresh-btn { background:rgba(255,255,255,0.05); border:0.5px solid rgba(255,255,255,0.1); color:rgba(232,230,240,0.5); border-radius:6px; padding:5px 12px; font-size:11px; cursor:pointer; font-family:'DM Sans',sans-serif; transition:all 0.2s; }
 .coach-refresh-btn:hover { background:rgba(255,255,255,0.09); color:var(--text); }
 .coach-error { text-align:center; padding:28px 20px; color:rgba(247,74,106,0.8); }
-
 
 @media (max-width:768px) {
   .nav{flex-direction:column;gap:14px;padding:16px}
@@ -1024,7 +1182,6 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
   input,select,textarea,button{font-size:16px}
   .form-grid{grid-template-columns:1fr!important}
   .submit-btn,.nav-btn,.auth-btn{width:100%}
-  .photo-preview-row{flex-wrap:wrap}
 }
 
 body {
@@ -1063,21 +1220,101 @@ body::before {
 .ai-loader{width:52px;height:52px;border:4px solid rgba(255,255,255,0.1);border-top:4px solid #c5f74a;border-radius:50%;animation:spin 1s linear infinite;margin:auto;margin-bottom:16px}
 @keyframes spin{to{transform:rotate(360deg)}}
 #aiLoading{text-align:center;padding:30px}
+
+#chat-bubble {
+  position: fixed; bottom: 24px; right: 24px;
+  background: linear-gradient(135deg, #c5f74a, #4ac582);
+  color: #0a0a0f; border-radius: 50px;
+  padding: 11px 18px 11px 14px;
+  display: flex; align-items: center; gap: 7px;
+  font-size: 13px; font-weight: 700; cursor: pointer;
+  z-index: 900; box-shadow: 0 4px 24px rgba(197,247,74,0.25);
+  transition: transform 0.15s, box-shadow 0.15s; user-select: none;
+}
+#chat-bubble:hover { transform: scale(1.05); box-shadow: 0 6px 32px rgba(197,247,74,0.4); }
+.chat-unread {
+  position: absolute; top: -4px; right: -4px;
+  background: #f74a6a; color: #fff; border-radius: 50%;
+  width: 16px; height: 16px; font-size: 9px;
+  display: flex; align-items: center; justify-content: center; font-weight: 700;
+}
+.chat-panel {
+  position: fixed; bottom: 80px; right: 24px;
+  width: 360px; max-height: 520px;
+  background: #13131a; border: 1px solid rgba(197,247,74,0.15);
+  border-radius: 16px; display: flex; flex-direction: column;
+  z-index: 901; box-shadow: 0 8px 48px rgba(0,0,0,0.6);
+  overflow: hidden; transition: opacity 0.2s, transform 0.2s;
+}
+.chat-panel.hidden { display: none; }
+.chat-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px; border-bottom: 1px solid rgba(232,230,240,0.07);
+  background: rgba(197,247,74,0.04);
+}
+.chat-close-btn {
+  background: none; border: none; color: rgba(232,230,240,0.4);
+  font-size: 15px; cursor: pointer; padding: 2px 6px;
+  border-radius: 6px; transition: color 0.15s, background 0.15s;
+}
+.chat-close-btn:hover { color: #e8e6f0; background: rgba(232,230,240,0.08); }
+.chat-messages {
+  flex: 1; overflow-y: auto; padding: 14px 14px 8px;
+  display: flex; flex-direction: column; gap: 10px;
+  scrollbar-width: thin; scrollbar-color: rgba(197,247,74,0.15) transparent;
+}
+.chat-msg { display: flex; }
+.chat-msg.ai  { justify-content: flex-start; }
+.chat-msg.user { justify-content: flex-end; }
+.chat-bubble-msg {
+  max-width: 85%; padding: 10px 13px; border-radius: 14px;
+  font-size: 12.5px; line-height: 1.55; color: #e8e6f0;
+}
+.chat-msg.ai  .chat-bubble-msg { background: rgba(232,230,240,0.07); border-bottom-left-radius: 4px; }
+.chat-msg.user .chat-bubble-msg { background: rgba(197,247,74,0.15); border-bottom-right-radius: 4px; color: #c5f74a; }
+.chat-msg.ai .chat-bubble-msg strong { color: #c5f74a; }
+.chat-typing .chat-bubble-msg { opacity: 0.5; font-style: italic; }
+.chat-input-row {
+  display: flex; align-items: flex-end; gap: 8px;
+  padding: 10px 12px 12px; border-top: 1px solid rgba(232,230,240,0.07);
+}
+.chat-textarea {
+  flex: 1; background: rgba(232,230,240,0.06);
+  border: 1px solid rgba(232,230,240,0.1); border-radius: 10px;
+  color: #e8e6f0; font-size: 12.5px; padding: 9px 12px;
+  resize: none; font-family: 'DM Sans', sans-serif;
+  line-height: 1.4; max-height: 100px; overflow-y: auto;
+  transition: border-color 0.15s;
+}
+.chat-textarea:focus { outline: none; border-color: rgba(197,247,74,0.3); }
+.chat-textarea::placeholder { color: rgba(232,230,240,0.25); }
+.chat-send-btn {
+  background: linear-gradient(135deg, #c5f74a, #4ac582);
+  border: none; border-radius: 10px; color: #0a0a0f;
+  font-size: 14px; width: 36px; height: 36px;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: opacity 0.15s, transform 0.1s;
+}
+.chat-send-btn:hover { opacity: 0.85; transform: scale(1.05); }
+.chat-send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+@media (max-width: 480px) {
+  .chat-panel { width: calc(100vw - 24px); right: 12px; bottom: 74px; }
+  #chat-bubble { right: 12px; bottom: 12px; }
+}
 </style>
 </head>
 <body>
 
-<!-- ═══════════ AUTH SCREEN ═══════════ -->
 <div id="auth-screen">
   <div class="auth-box">
     <div class="auth-logo">EDGE<span>JOURNAL</span></div>
     <div class="auth-tagline">Your personal forex trade journal</div>
     <div class="auth-tabs">
-      <button class="auth-tab active" data-tab="login"    onclick="showAuthTab('login')">Log In</button>
-      <button class="auth-tab"        data-tab="register" onclick="showAuthTab('register')">Register</button>
+      <button class="auth-tab active" data-tab="login" onclick="showAuthTab('login')">Log In</button>
+      <button class="auth-tab" data-tab="register" onclick="showAuthTab('register')">Register</button>
     </div>
     <div id="auth-error" class="auth-error"></div>
-    <!-- LOGIN -->
     <div id="login-form">
       <div class="auth-field">
         <label class="auth-label">Email</label>
@@ -1090,7 +1327,6 @@ body::before {
       <button class="auth-btn" id="l-btn" onclick="loginUser()">Log In</button>
       <p style="text-align:center;margin-top:14px;font-size:12px;color:var(--muted)">No account? <a href="#" onclick="showAuthTab('register')" style="color:var(--green);text-decoration:none">Register free</a></p>
     </div>
-    <!-- REGISTER -->
     <div id="register-form" style="display:none">
       <div class="auth-field">
         <label class="auth-label">Full Name *</label>
@@ -1118,7 +1354,6 @@ body::before {
   </div>
 </div>
 
-<!-- ═══════════ APP SCREEN ═══════════ -->
 <div id="app-screen">
   <nav class="nav">
     <div class="nav-logo">EDGE<span>JOURNAL</span></div>
@@ -1132,7 +1367,7 @@ body::before {
       <div class="user-pill">
         <div class="user-avatar" id="user-avatar">U</div>
         <div class="user-info">
-          <span class="user-name-text"  id="user-name">—</span>
+          <span class="user-name-text" id="user-name">—</span>
           <span class="user-email-text" id="user-email">—</span>
         </div>
       </div>
@@ -1141,7 +1376,6 @@ body::before {
     </div>
   </nav>
 
-  <!-- DASHBOARD -->
   <div class="view active" id="view-dashboard">
     <div class="stats-grid" id="stats-grid"></div>
     <div class="card">
@@ -1162,8 +1396,6 @@ body::before {
       <div class="section-title">Recent Trades</div>
       <div id="recent-trades"></div>
     </div>
-
-    <!-- AI COACH DASHBOARD SECTION -->
     <div class="card ai-coach-card" style="margin-top:18px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
         <div>
@@ -1185,7 +1417,6 @@ body::before {
     </div>
   </div>
 
-  <!-- LOG TRADE -->
   <div class="view" id="view-log">
     <div class="card">
       <div class="card-title" style="font-size:13px;color:rgba(232,230,240,0.6);margin-bottom:18px">New Trade Entry</div>
@@ -1261,12 +1492,24 @@ body::before {
         </div>
         <div class="form-group full">
           <label class="form-label">Trade Screenshots (optional)</label>
-          <div class="photo-upload-area" onclick="document.getElementById('f-photos').click()">
-            <div class="photo-upload-icon">📸</div>
-            <div class="photo-upload-text">Click or drag &amp; drop screenshots</div>
-            <div class="photo-upload-sub">Entry, exit, or chart setup — up to 3 images</div>
+          
+          <div style="display:flex; gap:10px; margin-bottom:10px;">
+            <div class="photo-upload-area" onclick="document.getElementById('f-photos').click()" style="flex:1;">
+              <div class="photo-upload-icon">🖼️</div>
+              <div class="photo-upload-text">Upload from Gallery</div>
+              <div class="photo-upload-sub">Choose from your files</div>
+            </div>
+            
+            <div class="photo-upload-area" onclick="openCameraCapture()" style="flex:1;">
+              <div class="photo-upload-icon">📷</div>
+              <div class="photo-upload-text">Take Photo</div>
+              <div class="photo-upload-sub">Use your camera</div>
+            </div>
           </div>
+          
           <input type="file" id="f-photos" accept="image/*" multiple style="display:none" onchange="handlePhotoSelect(event)">
+          <input type="file" id="f-camera" accept="image/*" capture="environment" style="display:none" onchange="handleCameraCapture(event)">
+          
           <div class="photo-preview-row" id="photo-preview-row"></div>
         </div>
       </div>
@@ -1274,7 +1517,6 @@ body::before {
     </div>
   </div>
 
-  <!-- PATTERNS -->
   <div class="view" id="view-patterns">
     <div class="insight-grid" id="insight-grid"></div>
     <div class="two-col">
@@ -1286,7 +1528,6 @@ body::before {
     <div class="card" style="margin-bottom:0"><div class="card-title">best pair × session combos</div><div id="combo-breakdown"></div></div>
   </div>
 
-  <!-- HISTORY -->
   <div class="view" id="view-history">
     <div class="filter-row">
       <select class="form-select" id="h-pair" onchange="renderHistory()"><option value="">All Pairs</option></select>
@@ -1308,12 +1549,28 @@ body::before {
   </div>
 </div>
 
-<!-- MODAL -->
 <div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
   <div class="modal" id="modal-content"></div>
 </div>
 
-<!-- AI MODAL -->
+<div id="camera-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.95); z-index:9999; flex-direction:column;">
+  <div style="display:flex; justify-content:space-between; align-items:center; padding:16px; background:rgba(0,0,0,0.5);">
+    <span style="color:white; font-size:14px;">Take Photo</span>
+    <button onclick="closeCameraModal()" style="background:rgba(255,255,255,0.1); border:none; color:white; width:32px; height:32px; border-radius:50%; cursor:pointer; font-size:16px;">✕</button>
+  </div>
+  
+  <div style="flex:1; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden;">
+    <video id="camera-preview" autoplay playsinline style="width:100%; height:100%; object-fit:cover;"></video>
+    <canvas id="camera-canvas" style="display:none;"></canvas>
+  </div>
+  
+  <div style="display:flex; justify-content:center; gap:20px; padding:20px; background:rgba(0,0,0,0.5);">
+    <button onclick="switchCamera()" style="background:rgba(255,255,255,0.1); border:none; color:white; width:44px; height:44px; border-radius:50%; cursor:pointer; font-size:20px;">🔄</button>
+    <button onclick="capturePhoto()" style="background:#c5f74a; border:none; color:#0a0a0f; width:64px; height:64px; border-radius:50%; cursor:pointer; font-size:24px; border:3px solid white;">📷</button>
+    <button onclick="closeCameraModal()" style="background:rgba(255,255,255,0.1); border:none; color:white; width:44px; height:44px; border-radius:50%; cursor:pointer; font-size:16px;">✕</button>
+  </div>
+</div>
+
 <div id="aiModal" class="ai-modal hidden">
   <div class="ai-content">
     <div class="ai-header">
@@ -1328,7 +1585,6 @@ body::before {
   </div>
 </div>
 
-<!-- ─── FLOATING AI CHAT ─── -->
 <div id="chat-bubble" onclick="toggleChat()" title="Chat with AI Coach">
   <span id="chat-bubble-icon">🧠</span>
   <span id="chat-bubble-label">AI Chat</span>
@@ -1354,152 +1610,7 @@ body::before {
   </div>
 </div>
 
-<style>
-/* ─── CHAT BUBBLE ─── */
-#chat-bubble {
-  position: fixed;
-  bottom: 24px;
-  right: 24px;
-  background: linear-gradient(135deg, #c5f74a, #4ac582);
-  color: #0a0a0f;
-  border-radius: 50px;
-  padding: 11px 18px 11px 14px;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  z-index: 900;
-  box-shadow: 0 4px 24px rgba(197,247,74,0.25);
-  transition: transform 0.15s, box-shadow 0.15s;
-  user-select: none;
-}
-#chat-bubble:hover { transform: scale(1.05); box-shadow: 0 6px 32px rgba(197,247,74,0.4); }
-.chat-unread {
-  position: absolute;
-  top: -4px; right: -4px;
-  background: #f74a6a;
-  color: #fff;
-  border-radius: 50%;
-  width: 16px; height: 16px;
-  font-size: 9px;
-  display: flex; align-items: center; justify-content: center;
-  font-weight: 700;
-}
-
-/* ─── CHAT PANEL ─── */
-.chat-panel {
-  position: fixed;
-  bottom: 80px;
-  right: 24px;
-  width: 360px;
-  max-height: 520px;
-  background: #13131a;
-  border: 1px solid rgba(197,247,74,0.15);
-  border-radius: 16px;
-  display: flex;
-  flex-direction: column;
-  z-index: 901;
-  box-shadow: 0 8px 48px rgba(0,0,0,0.6);
-  overflow: hidden;
-  transition: opacity 0.2s, transform 0.2s;
-}
-.chat-panel.hidden { display: none; }
-
-.chat-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 16px;
-  border-bottom: 1px solid rgba(232,230,240,0.07);
-  background: rgba(197,247,74,0.04);
-}
-.chat-close-btn {
-  background: none;
-  border: none;
-  color: rgba(232,230,240,0.4);
-  font-size: 15px;
-  cursor: pointer;
-  padding: 2px 6px;
-  border-radius: 6px;
-  transition: color 0.15s, background 0.15s;
-}
-.chat-close-btn:hover { color: #e8e6f0; background: rgba(232,230,240,0.08); }
-
-.chat-messages {
-  flex: 1;
-  overflow-y: auto;
-  padding: 14px 14px 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(197,247,74,0.15) transparent;
-}
-.chat-msg { display: flex; }
-.chat-msg.ai  { justify-content: flex-start; }
-.chat-msg.user { justify-content: flex-end; }
-.chat-bubble-msg {
-  max-width: 85%;
-  padding: 10px 13px;
-  border-radius: 14px;
-  font-size: 12.5px;
-  line-height: 1.55;
-  color: #e8e6f0;
-}
-.chat-msg.ai  .chat-bubble-msg { background: rgba(232,230,240,0.07); border-bottom-left-radius: 4px; }
-.chat-msg.user .chat-bubble-msg { background: rgba(197,247,74,0.15); border-bottom-right-radius: 4px; color: #c5f74a; }
-.chat-msg.ai .chat-bubble-msg strong { color: #c5f74a; }
-.chat-typing .chat-bubble-msg { opacity: 0.5; font-style: italic; }
-
-.chat-input-row {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-  padding: 10px 12px 12px;
-  border-top: 1px solid rgba(232,230,240,0.07);
-}
-.chat-textarea {
-  flex: 1;
-  background: rgba(232,230,240,0.06);
-  border: 1px solid rgba(232,230,240,0.1);
-  border-radius: 10px;
-  color: #e8e6f0;
-  font-size: 12.5px;
-  padding: 9px 12px;
-  resize: none;
-  font-family: 'DM Sans', sans-serif;
-  line-height: 1.4;
-  max-height: 100px;
-  overflow-y: auto;
-  transition: border-color 0.15s;
-}
-.chat-textarea:focus { outline: none; border-color: rgba(197,247,74,0.3); }
-.chat-textarea::placeholder { color: rgba(232,230,240,0.25); }
-.chat-send-btn {
-  background: linear-gradient(135deg, #c5f74a, #4ac582);
-  border: none;
-  border-radius: 10px;
-  color: #0a0a0f;
-  font-size: 14px;
-  width: 36px; height: 36px;
-  cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
-  transition: opacity 0.15s, transform 0.1s;
-}
-.chat-send-btn:hover { opacity: 0.85; transform: scale(1.05); }
-.chat-send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
-
-@media (max-width: 480px) {
-  .chat-panel { width: calc(100vw - 24px); right: 12px; bottom: 74px; }
-  #chat-bubble { right: 12px; bottom: 12px; }
-}
-</style>
-
 <script>
-// ─── CHAT STATE ───
 let chatHistory = [];
 let chatOpen = false;
 
@@ -1575,26 +1686,14 @@ window.sendChatMessage = async function() {
   appendChatMsg('user', userText);
   const typingEl = appendChatMsg('ai', '…', true);
 
-  // Build messages array with trade context as system message in first turn
   const systemContext = `You are an expert forex trading coach. You have full context of the trader's account:\n\n${buildTradeContext()}\n\nAnswer freely and naturally. Be specific, direct, and helpful. Reference their actual trades when relevant.`;
-
-  const messages = [];
-  // Inject context into first user message if this is a fresh conversation
-  if (chatHistory.length === 0) {
-    messages.push({ role: 'user', content: systemContext + '\n\nUser says: ' + userText });
-  } else {
-    // Rebuild history
-    chatHistory.forEach(m => messages.push(m));
-    messages.push({ role: 'user', content: userText });
-  }
 
   try {
     const res = await fetch('/api/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        pair:      'chat',
-        direction: '—',
+        pair: 'chat', direction: '—',
         entry: '—', exit: '—', sl: '—', tp: '—', rr: '—',
         pnl: '0', duration: '—', emotion: '—',
         reason: chatHistory.length === 0
@@ -1607,16 +1706,13 @@ window.sendChatMessage = async function() {
     const data = await res.json();
     const reply = data.analysis || 'Sorry, I couldn\'t get a response. Try again.';
 
-    // Update history
     chatHistory.push({ role: 'user', content: userText });
     chatHistory.push({ role: 'assistant', content: reply });
-    // Keep last 10 turns to avoid token overflow
     if (chatHistory.length > 20) chatHistory = chatHistory.slice(-20);
 
     typingEl.remove();
     appendChatMsg('ai', reply);
 
-    // Show unread badge if chat is closed
     if (!chatOpen) {
       const unread = document.getElementById('chat-unread');
       unread.classList.remove('hidden');
